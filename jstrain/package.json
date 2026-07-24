@@ -1,0 +1,35 @@
+{
+  "name": "jstrain",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A test-graded problem set that takes a junior engineer from 'barely knows JavaScript' to solid JS + TypeScript + React.",
+  "scripts": {
+    "test": "vitest run",
+    "watch": "vitest",
+    "test:js": "vitest run tests/js",
+    "test:ts": "vitest run tests/ts",
+    "test:react": "vitest run tests/react",
+    "test:capstone": "vitest run tests/capstone",
+    "test:types": "vitest run --typecheck.only",
+    "typecheck": "tsc --noEmit",
+    "verify:solutions": "cross-env JSTRAIN_SOLUTIONS=1 vitest run",
+    "verify:solutions:types": "cross-env JSTRAIN_SOLUTIONS=1 vitest run --typecheck.only"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "cross-env": "^7.0.3",
+    "jsdom": "^25.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
