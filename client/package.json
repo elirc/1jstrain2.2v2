@@ -1,15 +1,27 @@
 {
   "name": "client",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.2.0",
   "type": "module",
+  "description": "The upskilling app UI: roadmap, module primers, drill sessions and progress.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.1",
+    "@jstrain/content": "*"
   },
   "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
     "typescript": "~5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "@types/node": "^22.10.2"
   }
 }
