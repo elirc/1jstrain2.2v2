@@ -15,6 +15,9 @@ out/
 coverage/
 .vitest/
 
+# local progress database (created on first run)
+server/data/
+
 # env
 .env
 .env.*

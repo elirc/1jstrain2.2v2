@@ -1,15 +1,34 @@
 {
   "name": "jstrain2.2",
-  "version": "1.0.0",
-  "main": "index.js",
+  "version": "2.2.0",
+  "private": true,
+  "type": "module",
+  "description": "An interactive upskilling app that takes you from beginner to mid-level CRUD web developer across JavaScript, TypeScript, React, Node, SQL, C# and .NET.",
+  "workspaces": [
+    "content",
+    "server",
+    "client"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "concurrently -n server,client -c green,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
+    "dev:server": "npm run dev -w server",
+    "dev:client": "npm run dev -w client",
+    "build": "npm run build -w client",
+    "start": "cross-env NODE_ENV=production npm run start -w server",
+    "check": "npm run check -w server && npm run typecheck -w client",
+    "check:content": "node --input-type=module -e \"import('./content/index.js').then(m=>console.log(m.validateContent().counts))\"",
+    "drills": "npm --prefix jstrain test",
+    "drills:watch": "npm --prefix jstrain run watch"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "better-sqlite3@12.11.1": true
   }
 }
