@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to a PR replaces the old run; runs on main always finish.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: app (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows because that is where the app is developed; no Node matrix,
+        # .nvmrc (24) is the one version we support.
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        # windows-latest defaults to PowerShell; every step here is bash.
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - name: Content, server self-test and tests, client typecheck and tests
+        run: npm run check
+        env:
+          # The native store must load here. server/test/store.test.js already
+          # expects backend 'sqlite' from a real createStore(); check.js asserts
+          # it too when REQUIRE_SQLITE=1 (the guard lands with the phase-2 commit).
+          REQUIRE_SQLITE: '1'
+      - run: npm run build
+      - name: Answer keys must not be in the client bundle
+        run: node .github/scripts/answer-key-leak.mjs client/dist/assets

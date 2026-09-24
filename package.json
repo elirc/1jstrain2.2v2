@@ -15,20 +15,36 @@
     "dev:client": "npm run dev -w client",
     "build": "npm run build -w client",
     "start": "cross-env NODE_ENV=production npm run start -w server",
-    "check": "npm run check -w server && npm run typecheck -w client",
-    "check:content": "node --input-type=module -e \"import('./content/index.js').then(m=>console.log(m.validateContent().counts))\"",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck -w client",
+    "check": "npm run check:content && npm run check -w server && npm run typecheck -w client && npm run test -w client",
+    "check:content": "node content/tools/check.mjs",
+    "check:all": "npm run lint && npm run format:check && npm run check && npm run build",
+    "content:stats": "npm run stats -w content",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "drills": "npm --prefix jstrain test",
-    "drills:watch": "npm --prefix jstrain run watch"
+    "drills:watch": "npm --prefix jstrain run watch",
+    "drills:verify": "npm --prefix jstrain run verify:solutions && npm --prefix jstrain run verify:solutions:types"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "concurrently": "^9.2.1",
-    "cross-env": "^7.0.3"
+    "cross-env": "^7.0.3",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9",
+    "typescript-eslint": "^8.70.1"
   },
   "engines": {
-    "node": ">=20"
+    "node": "^22.22.2 || >=24.15.0"
   },
   "allowScripts": {
-    "esbuild@0.28.2": true,
-    "better-sqlite3@12.11.1": true
+    "better-sqlite3": true,
+    "esbuild": true
   }
 }

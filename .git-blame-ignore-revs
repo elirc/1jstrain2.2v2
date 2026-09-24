@@ -1,0 +1,11 @@
+# Commits that only reformat code. `git blame` skips them once you run:
+#
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# GitHub reads this file automatically.
+#
+# Pending: the one-time Prettier format and `eslint --fix` pass (J04) was
+# applied in the working tree, not committed. When this tree is committed, put
+# `git add --renormalize .` and the formatting in a commit of their own, then add
+# that commit's full SHA below this comment, in the next commit, with a one-line
+# comment saying what it was. Keep one SHA per line.

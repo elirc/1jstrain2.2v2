@@ -1,0 +1,13 @@
+# Generated, vendored or owned elsewhere
+node_modules
+**/dist
+coverage
+server/data
+package-lock.json
+client/src/labs.generated.json
+jstrain
+marketplace
+upskilling
+
+# Prose is reviewed by people; Prettier would reflow tables and lists.
+*.md

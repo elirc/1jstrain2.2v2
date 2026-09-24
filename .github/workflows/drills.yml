@@ -1,0 +1,37 @@
+name: Drills
+
+# jstrain/ is a separate package with its own lockfile and vitest 2. It only
+# changes when the problem set does, so it only runs then.
+on:
+  push:
+    branches: [main]
+    paths: ['jstrain/**', '.github/workflows/drills.yml', '.nvmrc']
+  pull_request:
+    paths: ['jstrain/**', '.github/workflows/drills.yml', '.nvmrc']
+
+concurrency:
+  group: drills-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: jstrain
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: jstrain/package-lock.json
+      - run: npm ci
+      - name: Reference solutions pass every test
+        run: npm run verify:solutions
+      - name: Reference solutions pass the type tests
+        run: npm run verify:solutions:types
