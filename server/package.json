@@ -8,7 +8,9 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "check": "node src/check.js"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "node src/check.js && vitest run"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -17,5 +19,8 @@
   },
   "optionalDependencies": {
     "better-sqlite3": "^12.6.2"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.1"
   }
 }

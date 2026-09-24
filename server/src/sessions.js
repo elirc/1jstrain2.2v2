@@ -1,46 +1,87 @@
 /**
  * Choosing what to ask next.
  *
- * Every mode returns questions with the answer key stripped. The ordering rules
- * are deliberately simple and explainable — a learner should be able to tell
- * why a question appeared.
+ * Every mode returns questions with the answer key stripped and the choices
+ * shuffled. The ordering rules are deliberately simple and explainable — a
+ * learner should be able to tell why a question appeared, so each one carries a
+ * `reason`:
+ * - `due`      a scheduled review whose time has come
+ * - `relearn`  a card you got wrong, back after its 10-minute pause
+ * - `new`      never answered
+ * - `practice` not due; a correct answer counts but does not move the schedule
  */
 
-import { curriculum, publicQuestion, questionsByModule } from '@jstrain/content';
+import { curriculum, questionsByModule } from '@jstrain/content';
+import { httpError } from './errors.js';
+import { presentQuestion } from './present.js';
 import { isDue, isMastered } from './srs.js';
 import { emptyCardState } from './store.js';
+import { DEFAULT_SETTINGS } from './settings.js';
 
-export const MODES = ['module', 'review', 'daily', 'stage', 'track', 'weak'];
+export const MODES = ['module', 'review', 'daily', 'stage', 'track', 'weak', 'flagged'];
 
-const DEFAULT_LIMIT = 12;
-const MAX_LIMIT = 40;
+export const MIN_LIMIT = 1;
+export const MAX_LIMIT = 40;
+
+/** `weak` means "keeps going wrong", not "missed once": that is what `review` is for. */
+const WEAK_MIN_ATTEMPTS = 2;
+const WEAK_ACCURACY = 0.75;
 
 /**
  * @param {object} params
- * @param {ReturnType<typeof import('./store.js').createStore> extends Promise<infer S> ? S : never} params.store
+ * @param {any} params.store
+ * @param {string} params.profileId
+ * @param {string} params.mode
+ * @param {string} [params.moduleId]
+ * @param {string} [params.stageId]
+ * @param {string} [params.trackId]
+ * @param {number} [params.size]       already validated (1..40)
+ * @param {number} [params.newPerDay]  the profile's setting
+ * @param {Date} [params.now]
+ * @param {() => number} [params.rng]
  */
-export function buildSession({ store, profileId, mode, moduleId, stageId, trackId, limit, now = new Date() }) {
-  const size = clamp(Number(limit) || DEFAULT_LIMIT, 1, MAX_LIMIT);
+export function buildSession({
+  store,
+  profileId,
+  mode = 'daily',
+  moduleId,
+  stageId,
+  trackId,
+  size = DEFAULT_SETTINGS.sessionSize,
+  newPerDay = DEFAULT_SETTINGS.newPerDay,
+  now = new Date(),
+  rng = Math.random,
+}) {
   const states = new Map(store.listCardStates(profileId).map((s) => [s.questionId, s]));
   const stateOf = (id) => states.get(id) ?? emptyCardState(profileId, id);
 
+  // `scope` is every question this session could ever draw from; `pool` is the
+  // subset the mode selects. `nextDueAt` looks at the scope, so an empty
+  // review session can still say when the next review is.
+  let scope = curriculum.questions;
   let pool;
   switch (mode) {
     case 'module': {
-      if (!moduleId) throw badRequest('moduleId is required for a module session');
-      pool = questionsByModule(moduleId);
-      if (pool.length === 0) throw badRequest(`unknown module: ${moduleId}`);
+      if (!moduleId)
+        throw httpError(400, 'validation_failed', 'moduleId is required for a module session.', { field: 'moduleId' });
+      scope = pool = questionsByModule(moduleId);
+      if (pool.length === 0) throw httpError(404, 'not_found', `No such module: ${moduleId}.`);
       break;
     }
     case 'stage': {
+      if (!stageId)
+        throw httpError(400, 'validation_failed', 'stageId is required for a stage session.', { field: 'stageId' });
       const stage = curriculum.stages.find((s) => s.id === stageId);
-      if (!stage) throw badRequest(`unknown stage: ${stageId}`);
-      pool = stage.modules.flatMap((id) => questionsByModule(id));
+      if (!stage) throw httpError(404, 'not_found', `No such stage: ${stageId}.`);
+      scope = pool = stage.modules.flatMap((id) => questionsByModule(id));
       break;
     }
     case 'track': {
-      pool = curriculum.questions.filter((q) => q.trackId === trackId);
-      if (pool.length === 0) throw badRequest(`unknown track: ${trackId}`);
+      if (!trackId)
+        throw httpError(400, 'validation_failed', 'trackId is required for a track session.', { field: 'trackId' });
+      if (!curriculum.tracks.some((t) => t.id === trackId))
+        throw httpError(404, 'not_found', `No such track: ${trackId}.`);
+      scope = pool = curriculum.questions.filter((q) => q.trackId === trackId);
       break;
     }
     case 'review': {
@@ -50,8 +91,17 @@ export function buildSession({ store, profileId, mode, moduleId, stageId, trackI
     case 'weak': {
       pool = curriculum.questions.filter((q) => {
         const s = stateOf(q.id);
-        return s.attempts > 0 && s.correct / s.attempts < 0.75;
+        return s.attempts >= WEAK_MIN_ATTEMPTS && s.correct / s.attempts < WEAK_ACCURACY;
       });
+      break;
+    }
+    case 'flagged': {
+      // Newest flag first, and only questions that still exist in the content.
+      const byId = new Map(curriculum.questions.map((q) => [q.id, q]));
+      pool = store
+        .listFlags(profileId)
+        .map((f) => byId.get(f.questionId))
+        .filter(Boolean);
       break;
     }
     case 'daily':
@@ -61,99 +111,136 @@ export function buildSession({ store, profileId, mode, moduleId, stageId, trackI
     }
   }
 
-  const selected =
-    mode === 'daily' ? pickDaily(pool, stateOf, size, now) : pickOrdered(pool, stateOf, size, mode, now);
+  let selected;
+  if (mode === 'daily') selected = pickDaily(pool, stateOf, size, newPerDay, now);
+  else if (mode === 'review') selected = byDueAt(pool, stateOf).slice(0, size);
+  else if (mode === 'weak') selected = byAccuracy(pool, stateOf).slice(0, size);
+  else if (mode === 'flagged') selected = pool.slice(0, size);
+  else selected = pickOrdered(pool, stateOf, size, now);
+
+  const questions = selected.map((q) => ({
+    ...presentQuestion(q, rng),
+    reason: reasonFor(stateOf(q.id), now),
+  }));
 
   return {
-    mode: mode ?? 'daily',
+    mode,
     moduleId: moduleId ?? null,
     stageId: stageId ?? null,
     trackId: trackId ?? null,
     requested: size,
     available: pool.length,
-    questions: selected.map(publicQuestion),
+    questions,
+    ...(questions.length === 0 ? { empty: true } : {}),
+    nextDueAt: nextDueAt(scope, stateOf, now),
   };
 }
 
-/**
- * A daily mix: due reviews first (they are the whole point of spacing), then
- * unseen questions from the earliest stage still incomplete, then anything
- * previously answered wrongly.
- */
-function pickDaily(pool, stateOf, size, now) {
-  const due = pool.filter((q) => isDue(stateOf(q.id), now));
-  const unseen = inCurriculumOrder(pool.filter((q) => stateOf(q.id).attempts === 0));
-  const shaky = pool.filter((q) => {
-    const s = stateOf(q.id);
-    return s.attempts > 0 && !isMastered(s) && !isDue(s, now);
-  });
+export function reasonFor(state, now) {
+  if (state.attempts === 0) return 'new';
+  if (isDue(state, now)) return state.reps === 0 ? 'relearn' : 'due';
+  return 'practice';
+}
 
-  const reviewShare = Math.min(due.length, Math.ceil(size * 0.5));
-  const out = [...shuffle(due).slice(0, reviewShare)];
-  for (const q of unseen) {
-    if (out.length >= size) break;
-    out.push(q);
+/** The earliest review still in the future, or null. */
+function nextDueAt(scope, stateOf, now) {
+  let next = null;
+  for (const q of scope) {
+    const s = stateOf(q.id);
+    if (s.attempts > 0 && new Date(s.dueAt) > now && (next === null || s.dueAt < next)) next = s.dueAt;
   }
-  for (const q of shuffle(shaky)) {
-    if (out.length >= size) break;
-    out.push(q);
-  }
-  for (const q of shuffle(due).slice(reviewShare)) {
-    if (out.length >= size) break;
-    out.push(q);
-  }
-  return out.slice(0, size);
+  return next;
 }
 
 /**
- * For a targeted session, lead with what is due, then unseen questions easiest
- * first, then the rest — so a module session starts where the learner is.
+ * The daily mix. Reviews come first, most overdue first, because an unreviewed
+ * backlog is the thing spaced repetition exists to prevent — but a few places
+ * are reserved for new material so a big backlog cannot freeze progress:
+ *
+ *   reserve = min(unseen, max(1, min(newPerDay, floor(size / 4))))
+ *
+ * Due cards fill everything but the reserve, so any due card left over after
+ * that has no room anyway. Room that is left (few due cards) goes to more new
+ * cards up to newPerDay, then unmastered cards, then mastered cards, soonest
+ * due first. newPerDay is a real cap: a fresh profile with nothing to review
+ * gets a session of newPerDay questions, and the response says so through
+ * `requested` vs the number returned. A question never appears twice.
  */
-function pickOrdered(pool, stateOf, size, mode, now) {
-  if (mode === 'review' || mode === 'weak') return shuffle(pool).slice(0, size);
+function pickDaily(pool, stateOf, size, newPerDay, now) {
+  const due = byDueAt(
+    pool.filter((q) => isDue(stateOf(q.id), now)),
+    stateOf,
+  );
+  const unseen = inCurriculumOrder(pool.filter((q) => stateOf(q.id).attempts === 0));
+  const reserve = Math.min(unseen.length, Math.max(1, Math.min(newPerDay, Math.floor(size / 4))));
+  const newCap = Math.max(reserve, newPerDay);
 
+  const out = [];
+  const taken = new Set();
+  const take = (q) => {
+    if (out.length < size && !taken.has(q.id)) {
+      out.push(q);
+      taken.add(q.id);
+    }
+  };
+
+  for (const q of due.slice(0, size - reserve)) take(q);
+  for (const q of unseen.slice(0, reserve)) take(q);
+  for (const q of unseen.slice(0, newCap)) take(q);
+
+  const seenNotDue = pool.filter((q) => {
+    const s = stateOf(q.id);
+    return s.attempts > 0 && !isDue(s, now);
+  });
+  for (const q of byDueAt(
+    seenNotDue.filter((q) => !isMastered(stateOf(q.id))),
+    stateOf,
+  ))
+    take(q);
+  for (const q of byDueAt(
+    seenNotDue.filter((q) => isMastered(stateOf(q.id))),
+    stateOf,
+  ))
+    take(q);
+  return out;
+}
+
+/**
+ * A targeted session (module, stage, track): due first, then unseen questions
+ * easiest first, then unmastered practice, then — so a nearly finished module
+ * still gives a full round — mastered cards, soonest due first.
+ */
+function pickOrdered(pool, stateOf, size, now) {
   const due = [];
   const unseen = [];
   const rest = [];
+  const mastered = [];
   for (const q of pool) {
     const s = stateOf(q.id);
     if (isDue(s, now)) due.push(q);
     else if (s.attempts === 0) unseen.push(q);
     else if (!isMastered(s)) rest.push(q);
+    else mastered.push(q);
   }
+  // Array.prototype.sort is stable, so equal difficulty keeps authored order.
   unseen.sort((a, b) => a.difficulty - b.difficulty);
-  const ordered = [...due, ...unseen, ...rest];
-  // If everything is mastered, still allow practice rather than an empty set.
-  return (ordered.length ? ordered : shuffle(pool)).slice(0, size);
+  return [...byDueAt(due, stateOf), ...unseen, ...byDueAt(rest, stateOf), ...byDueAt(mastered, stateOf)].slice(0, size);
+}
+
+function byDueAt(questions, stateOf) {
+  return [...questions].sort((a, b) => stateOf(a.id).dueAt.localeCompare(stateOf(b.id).dueAt));
+}
+
+function byAccuracy(questions, stateOf) {
+  const acc = (q) => stateOf(q.id).correct / stateOf(q.id).attempts;
+  return [...questions].sort((a, b) => acc(a) - acc(b) || stateOf(a.id).dueAt.localeCompare(stateOf(b.id).dueAt));
 }
 
 function inCurriculumOrder(questions) {
   const order = new Map();
-  curriculum.stages.forEach((stage, si) =>
-    stage.modules.forEach((moduleId, mi) => order.set(moduleId, si * 100 + mi)),
-  );
+  curriculum.stages.forEach((stage, si) => stage.modules.forEach((moduleId, mi) => order.set(moduleId, si * 100 + mi)));
   return [...questions].sort((a, b) => {
-    const byModule = (order.get(a.moduleId) ?? 999) - (order.get(b.moduleId) ?? 999);
+    const byModule = (order.get(a.moduleId) ?? 1e9) - (order.get(b.moduleId) ?? 1e9);
     return byModule !== 0 ? byModule : a.difficulty - b.difficulty;
   });
-}
-
-function shuffle(items) {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
-function clamp(n, lo, hi) {
-  return Math.max(lo, Math.min(hi, n));
-}
-
-function badRequest(message) {
-  const err = new Error(message);
-  err.status = 400;
-  err.code = 'bad_request';
-  return err;
 }
