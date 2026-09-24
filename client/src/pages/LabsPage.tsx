@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { Code } from '../components/Code';
+import { Page } from '../components/ui';
+import labsIndex from '../labs.generated.json';
 import { useApp } from '../lib/app-state';
 
 /**
@@ -16,67 +18,68 @@ import { useApp } from '../lib/app-state';
 interface Lab {
   file: string;
   title: string;
-  problems: number;
   teaches: string;
   /** Modules in this app that cover the same ground. */
   related: string[];
 }
 
+// One line per row keeps this table readable; Prettier would explode it.
+// prettier-ignore
 const TRACKS: { id: string; title: string; blurb: string; command: string; labs: Lab[] }[] = [
   {
     id: 'js',
-    title: 'JavaScript — 131 problems',
+    title: 'JavaScript',
     blurb: 'Write the language by hand before a framework hands it to you.',
     command: 'npm run test:js',
     labs: [
-      { file: 'js/01-values-and-types.js', title: 'Values and types', problems: 12, teaches: 'coercion, == vs ===, NaN, falsiness, ?? vs ||', related: ['js-values'] },
-      { file: 'js/02-functions-and-scope.js', title: 'Functions and scope', problems: 13, teaches: 'closures, once, currying, the var loop bug, hoisting', related: ['js-functions'] },
-      { file: 'js/03-arrays.js', title: 'Arrays', problems: 14, teaches: 'map/filter/reduce, groupBy, non-mutating sorts, a real report query', related: ['js-objects-arrays'] },
-      { file: 'js/04-objects.js', title: 'Objects', problems: 13, teaches: 'destructuring, deep clone/merge, immutable path updates', related: ['js-objects-arrays'] },
-      { file: 'js/05-strings-and-regex.js', title: 'Strings and regex', problems: 13, teaches: 'slugify, templating, query strings, parsing log lines', related: ['js-objects-arrays'] },
-      { file: 'js/06-this-classes-prototypes.js', title: 'this, classes, prototypes', problems: 13, teaches: 'the four this rules, bind by hand, private fields, EventEmitter', related: ['js-functions'] },
-      { file: 'js/07-async.js', title: 'Async', problems: 14, teaches: 'timeout, retry with backoff, bounded concurrency, AbortSignal', related: ['js-async'] },
-      { file: 'js/08-iterators-generators.js', title: 'Iterators and generators', problems: 12, teaches: 'the iteration protocol, lazy pipelines, async generators', related: ['js-async'] },
-      { file: 'js/09-errors-collections-dates.js', title: 'Errors, collections, dates', problems: 13, teaches: 'custom errors, cause, Result types, an LRU cache with Map', related: ['js-objects-arrays'] },
-      { file: 'js/10-functional-patterns.js', title: 'Functional patterns', problems: 14, teaches: 'pipe, memoize, debounce/throttle, a mini Redux with middleware', related: ['react-state'] },
+      { file: 'js/01-values-and-types.js', title: 'Values and types', teaches: 'coercion, == vs ===, NaN, falsiness, ?? vs ||', related: ['js-values'] },
+      { file: 'js/02-functions-and-scope.js', title: 'Functions and scope', teaches: 'closures, once, currying, the var loop bug, hoisting', related: ['js-functions'] },
+      { file: 'js/03-arrays.js', title: 'Arrays', teaches: 'map/filter/reduce, groupBy, non-mutating sorts, a real report query', related: ['js-objects-arrays'] },
+      { file: 'js/04-objects.js', title: 'Objects', teaches: 'destructuring, deep clone/merge, immutable path updates', related: ['js-objects-arrays'] },
+      { file: 'js/05-strings-and-regex.js', title: 'Strings and regex', teaches: 'slugify, templating, query strings, parsing log lines', related: ['js-objects-arrays'] },
+      { file: 'js/06-this-classes-prototypes.js', title: 'this, classes, prototypes', teaches: 'the four this rules, bind by hand, private fields, EventEmitter', related: ['js-classes'] },
+      { file: 'js/07-async.js', title: 'Async', teaches: 'timeout, retry with backoff, bounded concurrency, AbortSignal', related: ['js-async'] },
+      { file: 'js/08-iterators-generators.js', title: 'Iterators and generators', teaches: 'the iteration protocol, lazy pipelines, async generators', related: ['js-stdlib'] },
+      { file: 'js/09-errors-collections-dates.js', title: 'Errors, collections, dates', teaches: 'custom errors, cause, Result types, an LRU cache with Map', related: ['js-stdlib'] },
+      { file: 'js/10-functional-patterns.js', title: 'Functional patterns', teaches: 'pipe, memoize, debounce/throttle, a mini Redux with middleware', related: ['react-state'] },
     ],
   },
   {
     id: 'ts',
-    title: 'TypeScript — 73 problems',
+    title: 'TypeScript',
     blurb: 'Graded twice: behaviour, and the types themselves with expectTypeOf.',
     command: 'npm run test:ts && npm run test:types',
     labs: [
-      { file: 'ts/01-basic-types.ts', title: 'Basic types', problems: 12, teaches: 'unions, literals, tuples, unknown vs any, as const, never', related: ['ts-basics'] },
-      { file: 'ts/02-generics.ts', title: 'Generics', problems: 12, teaches: 'inference, constraints, keyof, a Result<T, E> type', related: ['ts-shapes'] },
-      { file: 'ts/03-narrowing-unions.ts', title: 'Narrowing unions', problems: 12, teaches: 'discriminated unions, predicates, parsing unknown data', related: ['ts-shapes'] },
-      { file: 'ts/04-utility-and-mapped-types.ts', title: 'Utility and mapped types', problems: 12, teaches: 'rebuild Partial/Pick/Omit/Record by hand, DeepPartial', related: ['ts-shapes'] },
-      { file: 'ts/05-conditional-and-template-types.ts', title: 'Conditional and template types', problems: 12, teaches: 'infer, distribution, CamelCase<S>, a typed event emitter', related: ['ts-shapes'] },
-      { file: 'ts/06-typing-real-code.ts', title: 'Typing real code', problems: 13, teaches: 'branded ids, overloads, validated API responses, satisfies', related: ['ts-practice'] },
+      { file: 'ts/01-basic-types.ts', title: 'Basic types', teaches: 'unions, literals, tuples, unknown vs any, as const, never', related: ['ts-basics'] },
+      { file: 'ts/02-generics.ts', title: 'Generics', teaches: 'inference, constraints, keyof, a Result<T, E> type', related: ['ts-shapes'] },
+      { file: 'ts/03-narrowing-unions.ts', title: 'Narrowing unions', teaches: 'discriminated unions, predicates, parsing unknown data', related: ['ts-shapes'] },
+      { file: 'ts/04-utility-and-mapped-types.ts', title: 'Utility and mapped types', teaches: 'rebuild Partial/Pick/Omit/Record by hand, DeepPartial', related: ['ts-advanced'] },
+      { file: 'ts/05-conditional-and-template-types.ts', title: 'Conditional and template types', teaches: 'infer, distribution, CamelCase<S>, a typed event emitter', related: ['ts-advanced'] },
+      { file: 'ts/06-typing-real-code.ts', title: 'Typing real code', teaches: 'branded ids, overloads, validated API responses, satisfies', related: ['ts-practice'] },
     ],
   },
   {
     id: 'react',
-    title: 'React — 57 problems',
+    title: 'React',
     blurb: 'Graded with Testing Library, querying by role and label the way a user sees the page.',
     command: 'npm run test:react',
     labs: [
-      { file: 'react/01-components-and-props.tsx', title: 'Components and props', problems: 9, teaches: 'JSX, lists and keys, children, the {count && …} zero bug', related: ['react-render'] },
-      { file: 'react/02-state-and-events.tsx', title: 'State and events', problems: 10, teaches: 'the updater form, controlled inputs, lifting state', related: ['react-state'] },
-      { file: 'react/03-effects-and-data.tsx', title: 'Effects and data', problems: 10, teaches: 'cleanup, race conditions, debouncing, AbortController', related: ['react-effects'] },
-      { file: 'react/04-hooks.tsx', title: 'Hooks', problems: 10, teaches: 'useReducer, useRef, useMemo with React.memo, custom hooks', related: ['react-perf'] },
-      { file: 'react/05-context-and-composition.tsx', title: 'Context and composition', problems: 9, teaches: 'context with a safe hook, compound components, a cart store', related: ['react-app'] },
-      { file: 'react/06-building-a-feature.tsx', title: 'Building a feature', problems: 9, teaches: 'search, sort, pagination, optimistic updates', related: ['react-app'] },
+      { file: 'react/01-components-and-props.tsx', title: 'Components and props', teaches: 'JSX, lists and keys, children, the {count && …} zero bug', related: ['react-render'] },
+      { file: 'react/02-state-and-events.tsx', title: 'State and events', teaches: 'the updater form, controlled inputs, lifting state', related: ['react-state'] },
+      { file: 'react/03-effects-and-data.tsx', title: 'Effects and data', teaches: 'cleanup, race conditions, debouncing, AbortController', related: ['react-effects'] },
+      { file: 'react/04-hooks.tsx', title: 'Hooks', teaches: 'useReducer, useRef, useMemo with React.memo, custom hooks', related: ['react-perf'] },
+      { file: 'react/05-context-and-composition.tsx', title: 'Context and composition', teaches: 'context with a safe hook, compound components, a cart store', related: ['react-app'] },
+      { file: 'react/06-building-a-feature.tsx', title: 'Building a feature', teaches: 'search, sort, pagination, optimistic updates', related: ['react-app'] },
     ],
   },
   {
     id: 'capstone',
-    title: 'Capstone — 2 integration challenges',
+    title: 'Capstone',
     blurb: 'Everything at once, the way a ticket actually arrives.',
     command: 'npm run test:capstone',
     labs: [
-      { file: 'capstone/01-analytics-pipeline.ts', title: 'Analytics pipeline', problems: 1, teaches: 'validate untrusted JSON, bucket by day, percentiles, format a report', related: ['ts-practice', 'data-sql'] },
-      { file: 'capstone/02-dashboard.tsx', title: 'Dashboard', problems: 1, teaches: 'loading and error states, a filter that re-derives without re-fetching', related: ['react-effects', 'react-app'] },
+      { file: 'capstone/01-analytics-pipeline.ts', title: 'Analytics pipeline', teaches: 'validate untrusted JSON, bucket by day, percentiles, format a report', related: ['ts-practice', 'data-sql'] },
+      { file: 'capstone/02-dashboard.tsx', title: 'Dashboard', teaches: 'loading and error states, a filter that re-derives without re-fetching', related: ['react-effects', 'react-app'] },
     ],
   },
 ];
@@ -86,6 +89,8 @@ const TRACKS: { id: string; title: string; blurb: string; command: string; labs:
  * is a complete Next.js + SQLite marketplace with a line-by-line guide for
  * every file it contains.
  */
+// One line per row keeps this table readable; Prettier would explode it.
+// prettier-ignore
 const READING: { area: string; files: string; teaches: string; related: string[] }[] = [
   {
     area: 'Auth and sessions',
@@ -119,29 +124,63 @@ const READING: { area: string; files: string; teaches: string; related: string[]
   },
 ];
 
-export function LabsPage() {
+/** Problem counts come from the files themselves (scripts/labs-index.mjs), not from this file. */
+const COUNTS: Record<string, number> = labsIndex.files;
+
+function problemsIn(file: string): number | null {
+  return typeof COUNTS[file] === 'number' ? COUNTS[file] : null;
+}
+
+function trackProblems(labs: Lab[]): number {
+  return labs.reduce((n, lab) => n + (problemsIn(lab.file) ?? 0), 0);
+}
+
+function plural(n: number, word: string) {
+  return `${n} ${word}${n === 1 ? '' : 's'}`;
+}
+
+/** A module link that survives an id the curriculum does not have (yet). */
+function ModuleTag({ moduleId }: { moduleId: string }) {
   const { moduleById } = useApp();
+  const module = moduleById.get(moduleId);
+  if (!module) {
+    return (
+      <span className="tag" title="This module is not in the curriculum yet">
+        {moduleId}
+      </span>
+    );
+  }
+  return (
+    <Link className="tag tag-accent" to={`/module/${encodeURIComponent(moduleId)}`}>
+      {module.title}
+    </Link>
+  );
+}
+
+export function LabsPage() {
   const [open, setOpen] = useState<string | null>('js');
+  const total = TRACKS.reduce((n, track) => n + trackProblems(track.labs), 0);
 
   return (
-    <main className="main narrow">
+    <Page title="Code labs" narrow>
       <div className="page-head">
         <h1>Code labs</h1>
         <p>
-          Knowing the answer and being able to type it are different skills, and an interview tests
-          both. The <code>jstrain/</code> folder in this repo is a test-graded problem set —
-          274 problems, 1057 tests — that pairs with the modules here.
+          Knowing the answer and being able to type it are different skills, and an interview tests both. The{' '}
+          <code>jstrain/</code> folder in this repo is a test-graded problem set — {plural(total, 'problem')} across{' '}
+          {TRACKS.reduce((n, t) => n + t.labs.length, 0)} files — that pairs with the modules here.
         </p>
       </div>
 
-      <section className="card" style={{ marginBottom: 22 }}>
-        <h2 style={{ fontSize: 15, marginBottom: 8 }}>Getting going</h2>
-        <p className="muted" style={{ fontSize: 13.5 }}>
-          Every exercise is a function whose body is <code>throw new Error('TODO')</code>. Delete the
-          throw, write the code, and run the tests until they go green.
+      <section className="card section">
+        <h2 className="section-title">Getting going</h2>
+        <p className="muted">
+          Every exercise is a function whose body is <code>throw new Error('TODO')</code>. Delete the throw, write the
+          code, and run the tests until they go green.
         </p>
         <Code
           lang="bash"
+          copyable
           source={`cd jstrain
 npm install          # once
 npm run watch        # re-runs affected tests as you save
@@ -149,118 +188,105 @@ npm run watch        # re-runs affected tests as you save
 # or grade a single module
 npx vitest run tests/js/03-arrays.test.js`}
         />
-        <p className="muted" style={{ fontSize: 13.5, marginBottom: 0 }}>
-          From the project root, <code>npm run drills</code> runs the whole suite and{' '}
-          <code>npm run drills:watch</code> starts the watcher. Reference answers live in{' '}
-          <code>jstrain/solutions/</code> — read them after you have tried, and diff them against
-          yours.
+        <p className="muted flush">
+          From the project root, <code>npm run drills</code> runs the whole suite and <code>npm run drills:watch</code>{' '}
+          starts the watcher. Reference answers live in <code>jstrain/solutions/</code> — read them after you have
+          tried, and diff them against yours.
         </p>
       </section>
 
-      <section className="card" style={{ marginBottom: 22 }}>
-        <h2 style={{ fontSize: 15, marginBottom: 4 }}>Read a real codebase</h2>
-        <p className="muted" style={{ fontSize: 13.5 }}>
-          The third way to learn this material is to read a finished app.{' '}
-          <code>marketplace/</code> is a complete Next.js + SQLite marketplace — sellers, carts,
-          checkout, orders, reviews, an admin panel — with a line-by-line guide for every file in{' '}
-          <code>marketplace/_learning/</code>. Start with{' '}
-          <code>_learning/00-ARCHITECTURE.md</code>, which explains each technology choice and its
-          alternative.
+      <section className="card section">
+        <h2 className="section-title">Read a real codebase</h2>
+        <p className="muted">
+          The third way to learn this material is to read a finished app. <code>marketplace/</code> is a complete
+          Next.js + SQLite marketplace — sellers, carts, checkout, orders, reviews, an admin panel — with a line-by-line
+          guide for every file in <code>marketplace/_learning/</code>. Start with{' '}
+          <code>_learning/00-ARCHITECTURE.md</code>, which explains each technology choice and its alternative.
         </p>
         {READING.map((entry) => (
-          <div key={entry.area} className="track-row" style={{ gridTemplateColumns: '1fr' }}>
-            <div>
-              <div className="spread" style={{ marginBottom: 2 }}>
-                <strong style={{ fontSize: 13.5 }}>{entry.area}</strong>
-                <code style={{ fontSize: 11 }}>{entry.files}</code>
-              </div>
-              <p className="muted" style={{ fontSize: 12.5, margin: '0 0 6px' }}>
-                {entry.teaches}
-              </p>
-              <div className="row" style={{ gap: 6 }}>
-                {entry.related.map((moduleId) => (
-                  <Link key={moduleId} className="tag tag-accent" to={`/module/${moduleId}`}>
-                    {moduleById.get(moduleId)?.title ?? moduleId}
-                  </Link>
-                ))}
-              </div>
+          <div key={entry.area} className="list-row list-row-flush">
+            <div className="spread">
+              <strong>{entry.area}</strong>
+              <code className="small-code">{entry.files}</code>
+            </div>
+            <p className="meta">{entry.teaches}</p>
+            <div className="row tight">
+              {entry.related.map((moduleId) => (
+                <ModuleTag key={moduleId} moduleId={moduleId} />
+              ))}
             </div>
           </div>
         ))}
       </section>
 
-      <h2 style={{ fontSize: 15, marginBottom: 12 }}>The graded problem set</h2>
+      <h2 className="section-title">The graded problem set</h2>
 
       <div className="stack">
         {TRACKS.map((track) => {
           const isOpen = open === track.id;
-          const problems = track.labs.reduce((n, lab) => n + lab.problems, 0);
+          const problems = trackProblems(track.labs);
+          const panelId = `labs-${track.id}`;
 
           return (
             <section key={track.id} className="stage">
-              <button
-                type="button"
-                className="stage-head"
-                style={{ width: '100%', border: 0, cursor: 'pointer', textAlign: 'left' }}
-                aria-expanded={isOpen}
-                onClick={() => setOpen(isOpen ? null : track.id)}
-              >
-                <div style={{ flex: 1 }}>
-                  <div className="row" style={{ gap: 8 }}>
-                    <h2>{track.title}</h2>
-                    <span className="tag">{track.labs.length} files</span>
-                  </div>
-                  <p>{track.blurb}</p>
-                </div>
-                <span className="faint" aria-hidden="true">
-                  {isOpen ? '▾' : '▸'}
-                </span>
-              </button>
+              <h2 className="stage-toggle">
+                <button
+                  type="button"
+                  className="stage-head stage-head-button"
+                  aria-expanded={isOpen}
+                  aria-controls={panelId}
+                  onClick={() => setOpen(isOpen ? null : track.id)}
+                >
+                  <span className="grow">
+                    <span className="row tight">
+                      <span className="stage-title">
+                        {track.title} — {plural(problems, 'problem')}
+                      </span>
+                      <span className="tag">{plural(track.labs.length, 'file')}</span>
+                    </span>
+                    <span className="stage-blurb">{track.blurb}</span>
+                  </span>
+                  <span className="faint" aria-hidden="true">
+                    {isOpen ? '▾' : '▸'}
+                  </span>
+                </button>
+              </h2>
 
               {isOpen && (
-                <div className="fade-in">
-                  <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
-                    <Code lang="bash" source={`cd jstrain && ${track.command}`} />
-                    <p className="faint" style={{ margin: 0, fontSize: 12 }}>
-                      {problems} problems in this track.
-                    </p>
+                <div id={panelId} className="fade-in">
+                  <div className="list-row">
+                    <Code lang="bash" copyable source={`cd jstrain && ${track.command}`} />
                   </div>
 
-                  {track.labs.map((lab) => (
-                    <div
-                      key={lab.file}
-                      style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)' }}
-                    >
-                      <div className="spread" style={{ marginBottom: 3 }}>
-                        <strong style={{ fontSize: 14 }}>{lab.title}</strong>
-                        <span className="faint" style={{ fontSize: 11.5 }}>
-                          {lab.problems} problems
-                        </span>
+                  {track.labs.map((lab) => {
+                    const count = problemsIn(lab.file);
+                    return (
+                      <div key={lab.file} className="list-row">
+                        <div className="spread">
+                          <strong>{lab.title}</strong>
+                          <span className="meta">
+                            {count === null ? 'count unavailable' : plural(count, 'problem')}
+                          </span>
+                        </div>
+                        <div className="meta">
+                          <code>exercises/{lab.file}</code>
+                        </div>
+                        <p className="muted small">{lab.teaches}</p>
+                        <div className="row tight">
+                          <span className="meta">Study first:</span>
+                          {lab.related.map((moduleId) => (
+                            <ModuleTag key={moduleId} moduleId={moduleId} />
+                          ))}
+                        </div>
                       </div>
-                      <div className="faint" style={{ fontSize: 12, marginBottom: 6 }}>
-                        <code>exercises/{lab.file}</code>
-                      </div>
-                      <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
-                        {lab.teaches}
-                      </p>
-                      <div className="row" style={{ gap: 6 }}>
-                        <span className="faint" style={{ fontSize: 11.5 }}>
-                          Study first:
-                        </span>
-                        {lab.related.map((moduleId) => (
-                          <Link key={moduleId} className="tag tag-accent" to={`/module/${moduleId}`}>
-                            {moduleById.get(moduleId)?.title ?? moduleId}
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
           );
         })}
       </div>
-    </main>
+    </Page>
   );
 }

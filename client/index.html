@@ -2,13 +2,34 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark light" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
       content="Interview-focused practice for JavaScript, TypeScript, React, Node, SQL, C# and .NET."
     />
-    <title>Stack Ready — from beginner to mid-level web developer</title>
+    <title>Stack Ready</title>
+    <script>
+      // Runs before first paint: resolve the stored or system theme into
+      // data-theme so the page never flashes the wrong palette. ThemeToggle
+      // (components/ui.tsx) owns the preference after this. If a CSP is ever
+      // added, allow this script by hash.
+      (function () {
+        var theme = 'system';
+        try {
+          var stored = localStorage.getItem('stack-ready:theme');
+          if (stored === 'light' || stored === 'dark' || stored === 'system') theme = stored;
+        } catch (e) {}
+        if (theme === 'system') {
+          try {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          } catch (e) {
+            theme = 'light';
+          }
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

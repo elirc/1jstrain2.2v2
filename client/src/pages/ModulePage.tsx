@@ -1,201 +1,215 @@
-import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
+import { NotFound } from '../components/NotFound';
 import { Inline, Markdown } from '../components/Markdown';
-import { Bar, ErrorBanner, Loading, TrackDot, percent, relativeDay } from '../components/ui';
+import { Bar, ErrorBanner, Loading, Page, TrackDot, dueLabel, percent } from '../components/ui';
 import { api } from '../lib/api';
-import { useApp, useModuleProgress } from '../lib/app-state';
+import { gateStage, useApp, useModuleProgress } from '../lib/app-state';
 import type { Module, QuestionWithState } from '../lib/types';
+import { useResource } from '../lib/useResource';
+import { drillHref } from './drill/params';
 
 /**
  * A module page is the lesson and the question list together: read the primer,
  * then drill it, then use the list to see exactly what you have and have not
- * locked in.
+ * locked in. Keyed by module id in the route, so moving between modules starts
+ * fresh on the primer tab.
  */
-export function ModulePage() {
-  const { moduleId = '' } = useParams();
-  const { profile, trackById, moduleById } = useApp();
-  const summary = moduleById.get(moduleId);
-  const progress = useModuleProgress(moduleId);
+export function ModulePage({ moduleId }: { moduleId: string }) {
+  const { moduleById } = useApp();
+  // Known synchronously from the curriculum: an unknown id never reaches the API.
+  if (!moduleById.has(moduleId)) {
+    return <NotFound what={`There is no module called “${moduleId}”.`} />;
+  }
+  return <KnownModule moduleId={moduleId} />;
+}
 
-  const [data, setData] = useState<{ module: Module; questions: QuestionWithState[] } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+function KnownModule({ moduleId }: { moduleId: string }) {
+  const { profile, trackById, moduleById, curriculum, progress, flaggedIds } = useApp();
+  const summary = moduleById.get(moduleId)!;
+  const mp = useModuleProgress(moduleId);
   const [tab, setTab] = useState<'primer' | 'questions'>('primer');
 
-  useEffect(() => {
-    if (!profile) return;
-    let cancelled = false;
-    setData(null);
-    setError(null);
+  const resource = useResource<{ module: Module; questions: QuestionWithState[] }>(
+    profile ? ['module', moduleId, profile.id] : null,
+    (signal) => api.module(moduleId, profile!.id, signal),
+  );
 
-    api
-      .module(moduleId, profile.id)
-      .then((next) => {
-        if (!cancelled) setData(next);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load that module.');
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [moduleId, profile]);
-
-  if (error) {
-    return (
-      <main className="main narrow">
-        <div className="stack">
-          <ErrorBanner message={error} />
-          <Link className="btn" to="/">
-            Back to the roadmap
-          </Link>
-        </div>
-      </main>
-    );
-  }
-
-  if (!data) {
-    return (
-      <main className="main">
-        <Loading what="Loading the module" />
-      </main>
-    );
-  }
-
-  const track = trackById.get(data.module.trackId);
+  const track = trackById.get(summary.trackId);
   const color = track?.color ?? 'var(--accent)';
+  const stages = curriculum?.stages ?? [];
+  const stage = stages.find((s) => s.modules.includes(moduleId));
+  const stageStats = stage ? progress?.stages.find((s) => s.stageId === stage.id) : undefined;
+  const gate = stage ? gateStage(stages, stage) : null;
+
+  const head = (
+    <div className="page-head">
+      <div className="row tight">
+        <TrackDot color={color} />
+        <span className="eyebrow">{track?.title ?? summary.trackId}</span>
+        <Link to="/" className="meta push-right">
+          ← Roadmap
+        </Link>
+      </div>
+      <h1>
+        <Inline text={summary.title} />
+      </h1>
+      <p>
+        <Inline text={summary.blurb} />
+      </p>
+    </div>
+  );
+
+  if (resource.error && !resource.data) {
+    return (
+      <Page title={summary.title} narrow>
+        {head}
+        <ErrorBanner message={`Could not load this module: ${resource.error.message}`} onRetry={resource.reload} />
+      </Page>
+    );
+  }
+
+  const data = resource.data;
+  const flaggedHere = data ? data.questions.filter((q) => q.state.flagged || flaggedIds.has(q.id)).length : 0;
 
   return (
-    <main className="main narrow">
-      <div className="page-head">
-        <div className="row" style={{ gap: 8, marginBottom: 8 }}>
-          <TrackDot color={color} />
-          <span className="eyebrow">{track?.title ?? data.module.trackId}</span>
-          <Link to="/" className="faint" style={{ fontSize: 12.5, marginLeft: 'auto' }}>
-            ← Roadmap
-          </Link>
-        </div>
-        <h1>
-          <Inline text={data.module.title} />
-        </h1>
-        <p>
-          <Inline text={data.module.blurb} />
-        </p>
-      </div>
+    <Page title={summary.title} narrow>
+      {head}
 
-      <div className="card" style={{ marginBottom: 22 }}>
-        <div className="spread" style={{ marginBottom: 12 }}>
+      {stageStats && !stageStats.unlocked && gate && stage && (
+        <div className="banner">
+          Jumping ahead? “{stage.title}” opens at {Math.round(stage.unlockAt * 100)}% mastery of “{gate.title}”. Nothing
+          stops you reading and drilling this now — answering here opens the stage.
+        </div>
+      )}
+
+      <div className="card section">
+        <div className="spread">
           <div>
             <div className="eyebrow">Your progress</div>
-            <div style={{ fontWeight: 650 }}>
-              {progress.mastered} of {summary?.questionCount ?? data.questions.length} mastered
-              {progress.attempts > 0 && (
-                <span className="muted" style={{ fontWeight: 400 }}>
-                  {' '}
-                  · {percent(progress.accuracy)} accuracy
-                </span>
-              )}
+            <div className="strong">
+              {mp ? `${mp.mastered} of ${mp.total || summary.questionCount} mastered` : '—'}
+              {mp && mp.attempts > 0 && <span className="muted normal"> · {percent(mp.accuracy)} accuracy</span>}
             </div>
           </div>
-          <div className="row">
-            {progress.due > 0 && (
-              <Link className="btn" to={`/drill?mode=module&moduleId=${moduleId}`}>
-                {progress.due} due
-              </Link>
+          <Link className="btn btn-primary" to={drillHref({ mode: 'module', moduleId })}>
+            {mp && mp.attempts > 0 ? 'Continue drilling' : 'Start drilling'}
+            {mp && mp.due > 0 && (
+              <span className="badge badge-on-primary">
+                {mp.due}
+                <span className="sr-only"> due</span>
+              </span>
             )}
-            <Link className="btn btn-primary" to={`/drill?mode=module&moduleId=${moduleId}`}>
-              {progress.attempts > 0 ? 'Continue drilling' : 'Start drilling'}
-            </Link>
-          </div>
+          </Link>
         </div>
-        <Bar value={progress.total ? progress.mastered / progress.total : 0} color={color} />
+        <Bar value={mp && mp.total ? mp.mastered / mp.total : 0} color={color} label="Module mastery" />
       </div>
 
-      <section className="card" style={{ marginBottom: 22 }}>
-        <div className="eyebrow" style={{ marginBottom: 8 }}>
-          After this module you can explain
-        </div>
-        <ul style={{ margin: 0, paddingLeft: '1.2em' }}>
-          {data.module.objectives.map((objective) => (
-            <li key={objective} style={{ marginBottom: 4 }}>
+      <section className="card section">
+        <h2 className="eyebrow">After this module you can explain</h2>
+        <ul className="objectives">
+          {summary.objectives.map((objective) => (
+            <li key={objective}>
               <Inline text={objective} />
             </li>
           ))}
         </ul>
       </section>
 
-      <div className="row" style={{ marginBottom: 16, gap: 4 }}>
+      <div className="row tabs" role="group" aria-label="Show">
         <button
           type="button"
           className={`btn btn-sm ${tab === 'primer' ? 'btn-primary' : 'btn-ghost'}`}
+          aria-pressed={tab === 'primer'}
           onClick={() => setTab('primer')}
         >
-          Primer · {data.module.estMinutes} min
+          Primer · {summary.estMinutes} min
         </button>
         <button
           type="button"
           className={`btn btn-sm ${tab === 'questions' ? 'btn-primary' : 'btn-ghost'}`}
+          aria-pressed={tab === 'questions'}
           onClick={() => setTab('questions')}
         >
-          Questions · {data.questions.length}
+          Questions · {summary.questionCount}
+          {flaggedHere > 0 && ` · ⚑ ${flaggedHere}`}
         </button>
       </div>
 
-      {tab === 'primer' ? (
+      {!data ? (
+        <Loading what="Loading the module" />
+      ) : tab === 'primer' ? (
         <article className="card fade-in">
-          <Markdown source={data.module.primer} />
+          <Markdown source={data.module.primer} copyable />
         </article>
       ) : (
-        <QuestionList questions={data.questions} />
+        <QuestionList questions={data.questions} flaggedIds={flaggedIds} />
       )}
-    </main>
+    </Page>
   );
 }
 
-function QuestionList({ questions }: { questions: QuestionWithState[] }) {
+const DIFFICULTY = ['', 'foundation', 'junior', 'mid-level'];
+
+function QuestionList({ questions, flaggedIds }: { questions: QuestionWithState[]; flaggedIds: ReadonlySet<string> }) {
+  const [onlyFlagged, setOnlyFlagged] = useState(false);
+  const isFlagged = (q: QuestionWithState) => Boolean(q.state.flagged) || flaggedIds.has(q.id);
+  const flaggedCount = questions.filter(isFlagged).length;
+  const shown = onlyFlagged ? questions.filter(isFlagged) : questions;
+
   return (
-    <div className="card fade-in" style={{ padding: 0 }}>
-      <p className="muted" style={{ padding: '14px 18px', margin: 0, fontSize: 13.5 }}>
-        Answers and explanations appear when you answer them in a drill — that is the whole point of
-        testing yourself rather than reading the key.
-      </p>
-      {questions.map((question) => (
-        <div
-          key={question.id}
-          style={{
-            padding: '12px 18px',
-            borderTop: '1px solid var(--border)',
-            display: 'flex',
-            gap: 12,
-            alignItems: 'flex-start',
-          }}
-        >
-          <span
-            className={`tag ${question.state.mastered ? 'tag-good' : question.state.attempts > 0 ? 'tag-warn' : ''}`}
-            style={{ marginTop: 2, minWidth: 74, justifyContent: 'center' }}
+    <div className="card card-flush fade-in">
+      <div className="list-row list-intro">
+        <p className="muted flush">
+          Answers and explanations appear when you answer a question in a drill — that is the point of testing yourself
+          rather than reading the key.
+        </p>
+        {flaggedCount > 0 && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            aria-pressed={onlyFlagged}
+            onClick={() => setOnlyFlagged((v) => !v)}
           >
-            {question.state.mastered
-              ? 'mastered'
-              : question.state.attempts > 0
-                ? `${question.state.correct}/${question.state.attempts}`
-                : 'new'}
-          </span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 550, fontSize: 14 }}>
-              <Inline text={question.prompt} />
+            <span aria-hidden="true">⚑</span> Flagged only ({flaggedCount})
+          </button>
+        )}
+      </div>
+      <ul className="question-list">
+        {shown.map((question) => (
+          <li key={question.id} className="list-row question-row">
+            <span
+              className={`tag status-tag ${question.state.mastered ? 'tag-good' : question.state.attempts > 0 ? 'tag-warn' : ''}`}
+            >
+              {question.state.mastered
+                ? 'mastered'
+                : question.state.attempts > 0
+                  ? `${question.state.correct}/${question.state.attempts}`
+                  : 'new'}
+            </span>
+            <div className="grow">
+              <div className="question-row-prompt">
+                {isFlagged(question) && (
+                  <span className="flag-marker" title="Flagged">
+                    <span aria-hidden="true">⚑</span>
+                    <span className="sr-only">Flagged: </span>
+                  </span>
+                )}
+                <Inline text={question.prompt} />
+              </div>
+              <div className="row tight meta">
+                <span>{DIFFICULTY[question.difficulty]}</span>
+                <span aria-hidden="true">·</span>
+                <span>{dueLabel(question.state)}</span>
+                {question.tags.slice(0, 3).map((tag) => (
+                  <span key={tag}>· {tag}</span>
+                ))}
+              </div>
             </div>
-            <div className="row faint" style={{ fontSize: 11.5, gap: 6, marginTop: 3 }}>
-              <span>{['', 'foundation', 'junior', 'mid-level'][question.difficulty]}</span>
-              <span>·</span>
-              <span>{relativeDay(question.state.dueAt)}</span>
-              {question.tags.slice(0, 3).map((tag) => (
-                <span key={tag}>· {tag}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-      ))}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

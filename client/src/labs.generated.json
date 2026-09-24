@@ -1,0 +1,29 @@
+{
+  "source": "jstrain/exercises",
+  "files": {
+    "capstone/01-analytics-pipeline.ts": 8,
+    "capstone/02-dashboard.tsx": 5,
+    "js/01-values-and-types.js": 12,
+    "js/02-functions-and-scope.js": 12,
+    "js/03-arrays.js": 14,
+    "js/04-objects.js": 14,
+    "js/05-strings-and-regex.js": 14,
+    "js/06-this-classes-prototypes.js": 12,
+    "js/07-async.js": 14,
+    "js/08-iterators-generators.js": 13,
+    "js/09-errors-collections-dates.js": 14,
+    "js/10-functional-patterns.js": 12,
+    "react/01-components-and-props.tsx": 10,
+    "react/02-state-and-events.tsx": 10,
+    "react/03-effects-and-data.tsx": 10,
+    "react/04-hooks.tsx": 10,
+    "react/05-context-and-composition.tsx": 8,
+    "react/06-building-a-feature.tsx": 8,
+    "ts/01-basic-types.ts": 15,
+    "ts/02-generics.ts": 13,
+    "ts/03-narrowing-unions.ts": 10,
+    "ts/04-utility-and-mapped-types.ts": 13,
+    "ts/05-conditional-and-template-types.ts": 12,
+    "ts/06-typing-real-code.ts": 10
+  }
+}

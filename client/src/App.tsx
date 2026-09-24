@@ -1,21 +1,32 @@
-import { Component, type ReactNode } from 'react';
-import { createBrowserRouter, Link, RouterProvider, useRouteError } from 'react-router-dom';
+import { Component, useState, type ReactNode } from 'react';
+import {
+  createBrowserRouter,
+  isRouteErrorResponse,
+  Link,
+  Outlet,
+  RouterProvider,
+  useLocation,
+  useParams,
+  useRouteError,
+  type RouteObject,
+} from 'react-router-dom';
 
+import { NotFound } from './components/NotFound';
 import { Shell } from './components/Shell';
-import { ErrorBanner, Loading } from './components/ui';
+import { ErrorBanner, Loading, Page } from './components/ui';
 import { AppProvider, useApp } from './lib/app-state';
 
 import { Dashboard } from './pages/Dashboard';
-import { DrillPage } from './pages/DrillPage';
+import { DrillPage } from './pages/drill/DrillPage';
 import { LabsPage } from './pages/LabsPage';
 import { ModulePage } from './pages/ModulePage';
 import { ProgressPage } from './pages/ProgressPage';
 import { TracksPage } from './pages/TracksPage';
 
 /**
- * An error boundary catches errors thrown while *rendering* its subtree — not
- * ones in event handlers or async callbacks, which is why the API client
- * surfaces those through state instead.
+ * The last-resort boundary, outside the router: it only ever catches an error
+ * thrown by `AppProvider` itself. Render errors inside routes are caught by the
+ * router's `errorElement`s below, which keep the shell on screen.
  */
 class Boundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -41,74 +52,153 @@ class Boundary extends Component<{ children: ReactNode }, { error: Error | null 
   }
 }
 
+function describeRouteError(error: unknown): string {
+  if (isRouteErrorResponse(error)) return `${error.status} ${error.statusText}`.trim();
+  if (error instanceof Error) return error.message;
+  return 'That page could not be shown.';
+}
+
+/** A crash inside a page: shown inside the shell, so the nav and a way home survive. */
 function RouteError() {
   const error = useRouteError();
-  const message = error instanceof Error ? error.message : 'That page could not be loaded.';
+  if (isRouteErrorResponse(error) && error.status === 404) return <NotFound />;
+  return (
+    <Page title="Something broke" narrow>
+      <div className="stack">
+        <ErrorBanner message={`Something broke on this page: ${describeRouteError(error)}`} />
+        <div className="row">
+          <button type="button" className="btn" onClick={() => window.location.reload()}>
+            Try again
+          </button>
+          <Link className="btn btn-primary" to="/">
+            Back to the roadmap
+          </Link>
+        </div>
+      </div>
+    </Page>
+  );
+}
+
+/** Only reached when the shell itself fails to render. */
+function RootError() {
+  const error = useRouteError();
   return (
     <main className="main narrow">
-      <ErrorBanner message={message} />
+      <title>Something broke · Stack Ready</title>
+      <div className="stack">
+        <ErrorBanner message={`Stack Ready could not start: ${describeRouteError(error)}`} />
+        <div className="row">
+          <button type="button" className="btn" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+          <a className="btn" href="/">
+            Back to the roadmap
+          </a>
+        </div>
+      </div>
     </main>
   );
 }
 
-/** Holds every route until the profile and curriculum have loaded. */
-function Gate({ children }: { children: ReactNode }) {
-  const { loading, error, profile, curriculum } = useApp();
+/**
+ * Holds every app route until the learner and the curriculum have loaded, and
+ * then until the first progress snapshot exists. After that, reloads keep the
+ * last snapshot on screen; this never blanks the page again.
+ */
+export function Gate() {
+  const { bootStatus, bootError, retryBoot, profiles, profile, curriculum, progress, progressError, reloadProgress } =
+    useApp();
 
-  if (loading) return <main className="main">{<Loading what="Loading your curriculum" />}</main>;
-  if (error) {
+  if (bootError) {
     return (
-      <main className="main narrow">
+      <Page title="Cannot reach the API" narrow>
         <div className="stack">
-          <ErrorBanner message={error} />
+          <ErrorBanner message={bootError} onRetry={retryBoot} />
           <p className="muted">
-            The API should be running on port 3001. Start both halves with <code>npm run dev</code>{' '}
-            from the project root.
+            Stack Ready needs its API. From the project root, <code>npm run dev</code> starts both halves; the API
+            listens on <code>127.0.0.1:3001</code> unless <code>PORT</code> says otherwise.
           </p>
         </div>
-      </main>
+      </Page>
     );
   }
-  if (!profile || !curriculum) {
+  if (bootStatus !== 'ok' || !curriculum) {
     return (
-      <main className="main narrow">
-        <ErrorBanner message="No learner profile is available. Create one from the menu above." />
-      </main>
+      <Page title="Loading" narrow>
+        <Loading what="Loading your curriculum" />
+      </Page>
     );
   }
-  return <>{children}</>;
+  if (profiles.length === 0) {
+    return (
+      <Page title="No learner" narrow>
+        <div className="empty">
+          <h1 className="empty-title">No learner yet</h1>
+          <p>Add one with “New learner” at the top of the page.</p>
+        </div>
+      </Page>
+    );
+  }
+  if (!profile || !progress) {
+    if (progressError) {
+      return (
+        <Page title="Progress unavailable" narrow>
+          <ErrorBanner
+            message={`Could not load progress for ${profile?.name ?? 'this learner'}: ${progressError}`}
+            onRetry={reloadProgress}
+          />
+        </Page>
+      );
+    }
+    return (
+      <Page title="Loading" narrow>
+        <Loading what="Loading your progress" />
+      </Page>
+    );
+  }
+  return <Outlet />;
 }
 
-const router = createBrowserRouter([
+/** Keyed by module id: moving between modules starts on the primer, with fresh state. */
+function ModuleRoute() {
+  const { moduleId = '' } = useParams();
+  return <ModulePage key={moduleId} moduleId={moduleId} />;
+}
+
+/**
+ * Keyed by location: following any drill link — including one to the very
+ * same URL — starts a fresh session instead of leaving the old one mounted.
+ */
+function DrillRoute() {
+  const location = useLocation();
+  return <DrillPage key={location.key} />;
+}
+
+export const routes: RouteObject[] = [
   {
     element: <Shell />,
-    errorElement: <RouteError />,
+    errorElement: <RootError />,
     children: [
-      { path: '/', element: <Gate><Dashboard /></Gate> },
-      { path: '/tracks', element: <Gate><TracksPage /></Gate> },
-      { path: '/module/:moduleId', element: <Gate><ModulePage /></Gate> },
-      { path: '/drill', element: <Gate><DrillPage /></Gate> },
-      { path: '/progress', element: <Gate><ProgressPage /></Gate> },
-      { path: '/labs', element: <Gate><LabsPage /></Gate> },
       {
-        path: '*',
-        element: (
-          <main className="main narrow">
-            <div className="empty">
-              <h1>Not found</h1>
-              <p>That page does not exist.</p>
-              <Link className="btn" to="/">
-                Back to the roadmap
-              </Link>
-            </div>
-          </main>
-        ),
+        element: <Gate />,
+        errorElement: <RouteError />,
+        children: [
+          { path: '/', element: <Dashboard /> },
+          { path: '/tracks', element: <TracksPage /> },
+          { path: '/module/:moduleId', element: <ModuleRoute /> },
+          { path: '/drill', element: <DrillRoute /> },
+          { path: '/progress', element: <ProgressPage /> },
+          { path: '/labs', element: <LabsPage /> },
+        ],
       },
+      { path: '*', element: <NotFound /> },
     ],
   },
-]);
+];
 
 export function App() {
+  // Created on first render, not at import, so tests can import `routes` freely.
+  const [router] = useState(() => createBrowserRouter(routes));
   return (
     <Boundary>
       <AppProvider>
