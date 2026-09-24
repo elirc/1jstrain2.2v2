@@ -77,31 +77,31 @@ export const stages = [
     id: 'stage-1',
     title: 'Stage 1 · The language',
     blurb:
-      'Before frameworks: values, functions, objects, async and modules. Almost every "why did this break" moment later traces back to something here.',
+      'Before frameworks: values, functions, objects, classes, async, the standard library and modules. Almost every "why did this break" moment later traces back to something here.',
     unlockAt: 0,
-    modules: ['js-values', 'js-functions', 'js-objects-arrays', 'js-async', 'js-modules'],
+    modules: ['js-values', 'js-functions', 'js-objects-arrays', 'js-classes', 'js-async', 'js-stdlib', 'js-modules'],
   },
   {
     id: 'stage-2',
     title: 'Stage 2 · Types and the browser',
     blurb:
-      'TypeScript well enough to model an API response, plus the browser platform your React code runs inside.',
+      "TypeScript well enough to model an API response and read a library's types, plus the browser platform, CSS layout and accessibility your React code lives inside.",
     unlockAt: 0.35,
-    modules: ['ts-basics', 'ts-shapes', 'ts-practice', 'web-browser'],
+    modules: ['ts-basics', 'ts-shapes', 'ts-practice', 'ts-advanced', 'web-browser', 'web-css', 'web-a11y'],
   },
   {
     id: 'stage-3',
     title: 'Stage 3 · React for real apps',
     blurb:
-      'Rendering model first, then state, effects, performance and how a page-sized app is actually structured.',
+      "Rendering model first, then state, effects, server state, performance, app structure and React 19's async model.",
     unlockAt: 0.35,
-    modules: ['react-render', 'react-state', 'react-effects', 'react-perf', 'react-app'],
+    modules: ['react-render', 'react-state', 'react-effects', 'react-data', 'react-perf', 'react-app', 'react-server'],
   },
   {
     id: 'stage-4',
     title: 'Stage 4 · The server side',
     blurb:
-      'Node, Express, HTTP semantics and API design: the CRUD backend a mid-level dev is expected to build unsupervised.',
+      'Node, Express, auth, HTTP semantics and API design: the CRUD backend a mid-level dev is expected to build unsupervised.',
     unlockAt: 0.35,
     modules: ['node-runtime', 'node-express', 'node-auth', 'web-http', 'web-api-design'],
   },
@@ -109,24 +109,49 @@ export const stages = [
     id: 'stage-5',
     title: 'Stage 5 · Data',
     blurb:
-      'SQL you can write in an interview, plus schema and ORM decisions that decide whether the app survives its first 10k rows.',
+      'SQL you can write in an interview, the schema and index decisions that decide whether the app survives its first 10k rows, and wiring the database into Node properly.',
     unlockAt: 0.35,
-    modules: ['data-sql', 'data-modeling'],
+    modules: ['data-sql', 'data-modeling', 'data-queries', 'node-data'],
   },
   {
     id: 'stage-6',
-    title: 'Stage 6 · C# and .NET',
-    blurb:
-      'The same CRUD app on the other stack: C# fundamentals, LINQ, ASP.NET Core and EF Core.',
+    title: 'Stage 6 · C#, the language',
+    blurb: 'The other language on your CV: value semantics, types and exceptions, modern syntax, LINQ and async.',
     unlockAt: 0.35,
-    modules: ['cs-basics', 'cs-oop', 'cs-linq-async', 'net-aspnet', 'net-di-config', 'net-efcore'],
+    modules: ['cs-basics', 'cs-oop', 'cs-modern', 'cs-linq-async'],
   },
   {
     id: 'stage-7',
-    title: 'Stage 7 · Ship it',
-    blurb:
-      'Git, testing, security and deployment. This is the stage that gets skipped and the stage that gets asked about.',
+    title: 'Stage 7 · ASP.NET Core and EF Core',
+    blurb: 'The same CRUD API on the other stack: pipeline, DI and config, EF Core, auth and tests.',
     unlockAt: 0.35,
-    modules: ['craft-git', 'craft-testing', 'craft-security', 'craft-shipping'],
+    modules: ['net-aspnet', 'net-di-config', 'net-efcore', 'net-auth', 'net-testing'],
+  },
+  {
+    id: 'stage-8',
+    title: 'Stage 8 · Ship it',
+    blurb:
+      'Git, testing, security, deployment and the cloud services underneath. This is the stage that gets skipped and the stage that gets asked about.',
+    unlockAt: 0.35,
+    // Gated by the Data stage, not by .NET: a JS-only learner should not have
+    // to master C# before learning to ship.
+    after: 'stage-5',
+    modules: ['craft-git', 'craft-testing', 'craft-security', 'craft-shipping', 'craft-cloud'],
+  },
+  {
+    id: 'stage-9',
+    title: 'Stage 9 · Run it in production',
+    blurb:
+      'Beyond mid-level: make it fast, see inside it, keep the data correct under concurrency, move work to queues, and harden it.',
+    unlockAt: 0.35,
+    modules: ['web-perf', 'craft-observability', 'data-scale', 'node-jobs', 'craft-appsec'],
+  },
+  {
+    id: 'stage-10',
+    title: 'Stage 10 · Toward senior',
+    blurb:
+      'System design for CRUD at scale, architecture decisions, incidents and on-call, and the review and mentoring that make a team better. Grounded, not whiteboard puzzles.',
+    unlockAt: 0.35,
+    modules: ['craft-design', 'craft-architecture', 'craft-incidents', 'craft-review'],
   },
 ];

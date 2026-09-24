@@ -18,19 +18,7 @@ const seenIds = new Set();
  */
 export function q(input) {
   return ({ moduleId, trackId }) => {
-    const {
-      id,
-      type = 'mcq',
-      d = 2,
-      prompt,
-      code,
-      lang,
-      choices,
-      answer,
-      why,
-      ask,
-      tags = [],
-    } = input;
+    const { id, type = 'mcq', d = 2, prompt, code, lang, choices, answer, why, ask, tags = [] } = input;
 
     if (!id) throw new Error(`[content] question in ${moduleId} is missing an id`);
     if (seenIds.has(id)) throw new Error(`[content] duplicate question id: ${id}`);

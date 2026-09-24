@@ -6,6 +6,9 @@
   "description": "Single source of truth for the upskilling curriculum: tracks, stages, modules, primers and interview questions. Plain ESM so both the Node server and the Vite client import it with no build step.",
   "main": "index.js",
   "types": "types.d.ts",
+  "scripts": {
+    "stats": "node tools/stats.mjs"
+  },
   "exports": {
     ".": {
       "types": "./types.d.ts",

@@ -7,16 +7,7 @@
  * that JavaScript.
  */
 
-export type TrackId =
-  | 'js'
-  | 'ts'
-  | 'react'
-  | 'node'
-  | 'web'
-  | 'data'
-  | 'csharp'
-  | 'dotnet'
-  | 'craft';
+export type TrackId = 'js' | 'ts' | 'react' | 'node' | 'web' | 'data' | 'csharp' | 'dotnet' | 'craft';
 
 /** 1 = "you just started", 2 = "junior", 3 = "mid-level expectation". */
 export type Difficulty = 1 | 2 | 3;
@@ -40,10 +31,18 @@ export interface Stage {
   /** Module ids, in the order they should be attempted. */
   modules: string[];
   /**
-   * Fraction of the previous stage's questions that must be *mastered* before
-   * this stage unlocks. Stage 1 is always 0.
+   * Fraction (0..1) of the gate stage's questions that must be *mastered* before
+   * this stage unlocks. The gate is the stage named by `after`, or the previous
+   * stage in list order when `after` is absent. Stage 1 is always 0.
    */
   unlockAt: number;
+  /**
+   * Optional id of the stage this one builds on, when that is not simply the
+   * previous stage in the list (e.g. "Ship it" builds on Data, not on .NET).
+   * Must name a stage that appears EARLIER in the list; validateContent()
+   * enforces this. The server computes `unlocked` from it.
+   */
+  after?: string;
 }
 
 export interface Module {
@@ -104,4 +103,4 @@ export declare function questionsByModule(moduleId: string): Question[];
 export declare function getQuestion(id: string): Question | undefined;
 export declare function getModule(id: string): Module | undefined;
 /** Throws with a readable report if the authored content is inconsistent. */
-export declare function validateContent(): { ok: true; counts: Record<string, number> };
+export declare function validateContent(): { ok: true; counts: Record<string, number>; warnings: string[] };
