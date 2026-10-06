@@ -65,9 +65,10 @@ This reference teaches JavaScript by starting from real MarketForge code first. 
 76:                 <div key={seller.user_id} className="card">
 77:                   <div className="spread">
 ```
-- Before: array of items from DB/state.
-- Operation: .map() callback runs per element.
-- After: transformed output used by UI/API response.
+- `dashboard.pendingSellers` arrived from `GET /api/admin/analytics` as an array of plain objects.
+- `.map()` turns each seller object into a JSX `<div className="card">` — React list rendering is literally "map data to elements".
+- `key={seller.user_id}` gives React a stable identity per row so it can re-render one card instead of the whole list.
+- Line 74 handles the empty case *before* the map: mapping an empty array renders nothing, so the "No pending applications" message has to be a separate branch.
 
 #### Extra standalone examples
 ```js
@@ -106,9 +107,10 @@ const payload = orders.map(o => ({ id: o.id, total: o.lines.reduce((s, l) => s +
 80:       imageUrl: row.image_url || ""
 81:     }));
 ```
-- Before: array of items from DB/state.
-- Operation: .filter() callback runs per element.
-- After: transformed output used by UI/API response.
+- A variant row stores three option columns (`option_size`, `option_color`, `option_material`), any of which can be `''`.
+- `[a, b, c].filter(Boolean)` keeps only truthy values — the empty strings drop out because `''` is falsy.
+- `.join(" / ")` then builds a label like `M / Red` or just `Cotton`, with no stray separators for missing options.
+- This one-liner is why the UI never shows `" / Red / "` — the cleanup happens at data-shaping time, not in JSX.
 
 #### Extra standalone examples
 ```js
@@ -141,9 +143,10 @@ const cards = products.filter(p => p.inStock).map(p => p.title);
 33:     [product, selectedVariantId]
 34:   );
 ```
-- Before: array of items from DB/state.
-- Operation: .find() / .findIndex() callback runs per element.
-- After: transformed output used by UI/API response.
+- `product?.variants?.find(...)` returns the **first** variant whose id matches the selection, or `undefined` if none does.
+- Both sides are wrapped in `String(...)` because `selectedVariantId` comes from a `<select>` (always a string) while `variant.id` is a number from SQLite — `find` with `===` would silently never match without the coercion.
+- It sits inside `useMemo` with `[product, selectedVariantId]` deps so the lookup reruns only when the product or the selection changes.
+- The `?.` chain matters: on first render `product` is still `null`, and without optional chaining this line would throw before the fetch resolves.
 
 #### Extra standalone examples
 ```js
@@ -188,9 +191,10 @@ if (idx === -1) { /* not found */ }
 55:     const regionTaxRate = ["CA", "NY", "TX"].includes(form.address.region) ? 0.0875 : 0.06;
 56:     const tax = Number(((subtotal + shipping) * regionTaxRate).toFixed(2));
 ```
-- Before: array of items from DB/state.
-- Operation: .reduce() callback runs per element.
-- After: transformed output used by UI/API response.
+- `form.shippingBySeller` is an object keyed by seller id (`{ "3": 7.99, "5": 4.5 }`), so `Object.values(...)` first turns it into an array of amounts.
+- `.reduce((sum, value) => sum + Number(value || 0), 0)` folds that array into one total; the `0` initial value means an empty cart still yields `0` instead of a TypeError.
+- `Number(value || 0)` guards against the input field being an empty string mid-edit.
+- Note this is only the **preview** total for the UI — the server recomputes everything in cents inside `checkout()` (`src/lib/orders.js`). Client math is for display; server math is the truth.
 
 #### Extra standalone examples
 ```js
@@ -238,9 +242,10 @@ const counts = words.reduce((acc, w) => ({ ...acc, [w]: (acc[w] || 0) + 1 }), {}
 21:     if (value !== "") {
 22:       params.set(key, value);
 ```
-- Before: array of items from DB/state.
-- Operation: .forEach() callback runs per element.
-- After: transformed output used by UI/API response.
+- The goal here is a **side effect**: mutating the `params` object (`URLSearchParams`), not producing a new array — exactly what `forEach` is for.
+- `Object.entries(filters)` yields `[key, value]` pairs, destructured straight in the callback parameters.
+- The `value !== ""` check keeps unset filters out of the query string, so the catalog URL stays clean (`?cursor=0&limit=12&category=mugs` instead of six empty params).
+- A `map` here would build an array of `undefined`s nobody reads — when you're calling `.set()`/`.push()`/`db.run()` for each item, `forEach` states that intent.
 
 #### Extra standalone examples
 ```js
@@ -293,9 +298,9 @@ const allValid = fields.every(f => f.trim().length > 0);
 162:     if (sort === "price_asc") {
 163:       return a.min_price_cents - b.min_price_cents;
 ```
-- Before: array of items from DB/state.
-- Operation: .sort() callback runs per element.
-- After: transformed output used by UI/API response.
+- The comparator branches on the `sort` query param: numeric subtraction for price, timestamp subtraction for `newest`, and a two-level tiebreak for `rating` (`b.rating_avg - a.rating_avg || b.rating_count - a.rating_count` — the `||` falls through to the second comparison only when the first returns `0`).
+- `.sort()` mutates in place and returns the **same array** — `sorted` and `productsWithRelevance` are one object with two names here.
+- That mutation is safe in this spot because `productsWithRelevance` was freshly built by the `.map().filter()` chain above and nothing else holds a reference to it. Sorting an array that arrived as a prop or shared state is where in-place sort bites.
 
 #### Extra standalone examples
 ```js
@@ -309,7 +314,7 @@ const safe = [...products].sort((a, b) => a.price - b.price);
 ```
 > **Concept:** `sort` mutates in place. Clone first when mutation is unsafe for state or shared arrays.
 
-**Try it**: In `catalog.js`, clone before sort and compare behavior under repeated calls.
+**Try it**: Find the client-side sort risk this project *avoids*: search the components for `.sort(` — there are none, because sorting happens server-side in `catalog.js`. Write down what would go wrong if `MarketplaceHome.js` sorted the `products` state array in place inside render.
 
 ### .flatMap() / .flat()
 
@@ -329,9 +334,10 @@ const safe = [...products].sort((a, b) => a.price - b.price);
 73:         const label = prefix ? `${prefix} / ${node.name}` : node.name;
 74:         return [{ value: node.slug, label }, ...flatten(node.children || [], label)];
 ```
-- Before: array of items from DB/state.
-- Operation: .flatMap() / .flat() callback runs per element.
-- After: transformed output used by UI/API response.
+- Categories come from the API as a **tree** (each node has `children`), but a `<select>` needs a flat list — this recursive `flatten` bridges the two shapes.
+- Each node returns an array: `[itself, ...its flattened children]`. `flatMap` splices those arrays together one level at a time, so recursion plus `flatMap` flattens arbitrarily deep trees.
+- The `prefix` parameter threads the parent's label down, producing entries like `Home / Kitchen / Mugs`.
+- Plain `.map()` here would give you nested arrays (`[node, [child, [grandchild]]]`); the "map then flatten one level" behaviour is the whole point.
 
 #### Extra standalone examples
 ```js
@@ -650,21 +656,18 @@ Project code first (UI):
 ```
 If you skip `catch`, Promise rejections can bubble and show generic errors without user-friendly messaging.
 
-### Promise.all / Promise.allSettled
+### Promise.all — and why this project doesn't need it
 
-Not used directly in this project yet.
+Not used in this project, and it's worth understanding why: the independent requests already run in parallel. `MarketplaceHome.js:60-68` fires the catalog load and the recently-viewed load from **separate `useEffect`s** — neither awaits the other, so they overlap naturally. `Promise.all` earns its place when one function must wait for several results before continuing:
 
-Extra examples:
 ```js
 const [products, cart] = await Promise.all([
-  fetch('/api/catalog').then(r => r.json()),
-  fetch('/api/cart').then(r => r.json())
+  apiRequest('/api/catalog?cursor=0'),
+  apiRequest('/api/cart')
 ]);
 ```
-```js
-const results = await Promise.allSettled(tasks);
-const failed = results.filter(r => r.status === 'rejected');
-```
+
+**Try it**: In `src/components/CheckoutPage.js`, `loadCart()` is the only data fetch. Sketch what the component would look like if checkout also needed saved addresses from a (hypothetical) `/api/addresses` — where would `Promise.all` go, and what happens to the error handling when one of the two rejects?
 
 ### Full request trace (frontend -> backend -> DB)
 1. `ProductDetail.addToCart()` sends `POST /api/cart`.
@@ -802,35 +805,6 @@ const { id, ...rest } = product; // rest
 > **Concept:** Destructuring is syntax sugar for extracting properties. Use it to clarify intent, but avoid over-nesting if readability drops.
 
 **Try it**: refactor one object access chain into destructuring in a local branch.
-
-### Tagged templates
-Project-first note: tagged templates are not used in this project.
-
-Extra examples:
-```js
-function dollars(strings, value) {
-  return strings[0] + `$${value.toFixed(2)}`;
-}
-const msg = dollars`Total: ${12.5}`;
-```
-
-> **Concept:** Tagged templates let you intercept template literal parts before final string creation.
-
-**Try it**: build a tiny tag that escapes HTML.
-
-### Logical assignment operators (`??=`, `||=`, `&&=`)
-Project-first note: these operators are not used directly in current code.
-
-Extra examples:
-```js
-config.timeout ??= 5000;
-user.name ||= 'Guest';
-flag &&= canProceed;
-```
-
-> **Concept:** Logical assignment combines check + assignment in one operator. Use carefully; readability first.
-
-**Try it**: rewrite one local fallback branch using `??=` and compare clarity.
 
 ### Reference vs value equality
 Project-first reminder: React updates in this project use spread (`{ ...current }`) to create new references.

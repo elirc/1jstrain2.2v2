@@ -31,10 +31,6 @@ A seller can onboard a store, list products with variants, manage inventory, ful
 - Role: login identity + persistent anonymous cart sessions.
 - Why chosen: simple, concrete auth/session model that clearly shows request-scoped identity.
 
-### ESLint + Next lint rules
-- Role: enforce consistent patterns and catch risky code early.
-- Why chosen: teaches production hygiene while coding features.
-
 ## Folder structure walkthrough
 
 ### `src/app/`
@@ -143,9 +139,10 @@ flowchart TD
 - Meaning: route access depends on user role.
 - Why: enforces clear security boundaries.
 
-### Optimistic UI with server reconciliation
-- Where: several client components update UI after API response (`CartPage`, `ProductDetail`, `SellerPage`).
-- Meaning: UI reacts quickly, then syncs with source-of-truth API state.
+### Reload-after-write (server as source of truth)
+- Where: `CartPage`, `ProductDetail`, `SellerPage` — after every mutation they re-fetch state from the API rather than patching local state.
+- Meaning: the client never guesses what the server did; it asks. Simpler than optimistic updates (no rollback logic), at the cost of one extra round trip per action.
+- Worth knowing the vocabulary: true *optimistic UI* updates the screen **before** the server confirms and rolls back on failure. This app deliberately doesn't do that — a good interview answer is explaining when you'd switch (high-latency networks, high-frequency actions like likes) and what it costs (reconciliation and failure-rollback code).
 
 ## How to run locally
 
@@ -173,6 +170,13 @@ npm run dev
 - Buyer: `buyer@market.dev` / `Buyer123!`
 
 ## Notes on current implementation quality
-- This codebase is intentionally learning-friendly and explicit.
-- It uses SQLite directly instead of Prisma/Postgres/Stripe, which is simpler for fundamentals but not full enterprise infra.
-- Checkout correctness patterns (transactions, inventory checks, order split) are production-relevant and worth studying deeply.
+- The checkout correctness patterns — one transaction around nine tables of
+  writes, the conditional-UPDATE inventory guard, snapshot columns on
+  `order_items` — are production-grade thinking and the best code to study
+  here (`05-PATTERNS.md` patterns 2, 7 and 8 walk through each).
+- The codebase also has real, known weaknesses: the client checkout preview
+  computes different totals than the server, the catalog search runs
+  entirely in memory, there is no input validation layer (`zod` is
+  installed but unused), and there are zero tests. These are catalogued
+  with fixes as exercises in `03-LEARNING-PATH.md` Chapter 8 — treat them
+  as the curriculum, not as flaws to ignore.
